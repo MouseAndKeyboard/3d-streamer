@@ -24,7 +24,7 @@ These are interpreted as deployment recipes with increasing rigor:
 ## Architecture snapshot
 
 - **One DigitalOcean droplet** (Ubuntu LTS) running:
-  - `cube_server` (C/GStreamer) as a systemd service.
+  - `cube_server` (custom C code, built around GStreamer) as a systemd service.
   - Static client assets served by a reverse proxy (Caddy or Nginx).
   - Signaling over HTTPS + WebSocket; media via WebRTC (UDP).
 - **DNS + TLS** for a single domain (e.g., `stream.example.com`).
@@ -98,6 +98,9 @@ Option B: **artifact deploy**
   - `SSH_HOST`, `SSH_USER`, `SSH_KEY`
   - `CS_STUN_SERVER`, `CS_TURN_*` (if needed)
   - `DOMAIN`, `TLS_EMAIL`
+- Also store the GitHub repository secret `DIGITAL_OCEAN_KEY` (a DigitalOcean
+  API key) for provisioning/monitoring environments from CI/CD. DigitalOcean
+  API docs: https://docs.digitalocean.com/reference/api/digitalocean/
 - Keep runtime secrets in `/etc/cube-server/env`, owned by root.
 
 ### Rollback

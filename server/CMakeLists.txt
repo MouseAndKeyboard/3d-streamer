@@ -8,6 +8,7 @@ find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(GST REQUIRED gstreamer-1.0 gstreamer-app-1.0 gstreamer-webrtc-1.0 gstreamer-sdp-1.0)
 pkg_check_modules(LWS REQUIRED libwebsockets)
+pkg_check_modules(OPENSSL REQUIRED openssl)
 pkg_check_modules(EGL REQUIRED egl)
 pkg_check_modules(GLES2 REQUIRED glesv2)
 
@@ -16,6 +17,7 @@ add_executable(cube_server src/main.c src/json_util.c)
 target_include_directories(cube_server PRIVATE
   ${GST_INCLUDE_DIRS}
   ${LWS_INCLUDE_DIRS}
+  ${OPENSSL_INCLUDE_DIRS}
   ${EGL_INCLUDE_DIRS}
   ${GLES2_INCLUDE_DIRS}
 )
@@ -23,13 +25,31 @@ target_include_directories(cube_server PRIVATE
 target_compile_options(cube_server PRIVATE
   ${GST_CFLAGS_OTHER}
   ${LWS_CFLAGS_OTHER}
+  ${OPENSSL_CFLAGS_OTHER}
   ${EGL_CFLAGS_OTHER}
   ${GLES2_CFLAGS_OTHER}
+)
+
+target_link_directories(cube_server PRIVATE
+  ${GST_LIBRARY_DIRS}
+  ${LWS_LIBRARY_DIRS}
+  ${OPENSSL_LIBRARY_DIRS}
+  ${EGL_LIBRARY_DIRS}
+  ${GLES2_LIBRARY_DIRS}
+)
+
+target_link_options(cube_server PRIVATE
+  ${GST_LDFLAGS_OTHER}
+  ${LWS_LDFLAGS_OTHER}
+  ${OPENSSL_LDFLAGS_OTHER}
+  ${EGL_LDFLAGS_OTHER}
+  ${GLES2_LDFLAGS_OTHER}
 )
 
 target_link_libraries(cube_server PRIVATE
   ${GST_LIBRARIES}
   ${LWS_LIBRARIES}
+  ${OPENSSL_LIBRARIES}
   ${EGL_LIBRARIES}
   ${GLES2_LIBRARIES}
   m

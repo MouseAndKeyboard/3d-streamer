@@ -48,6 +48,12 @@ If this works well, the cube can later be replaced with more complex scenes, inp
 
 Early scaffold. Only the project intent is defined so far.
 
+## Docs
+
+- `INFRA_PLAN.md` for deployment planning
+- `RUNBOOK.md` for rollback and operational steps
+- `OBSERVABILITY.md` for logging and uptime checks
+
 ## Next Steps
 
 - Choose a rendering approach for the server.

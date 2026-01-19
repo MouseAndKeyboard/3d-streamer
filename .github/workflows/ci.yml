@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install server deps
+        if: ${{ hashFiles('server/**') != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config \
+            libwebsockets-dev libssl-dev \
+            gstreamer1.0-tools gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly gstreamer1.0-libav \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+      - name: Build server (CMake)
+        if: ${{ hashFiles('server/CMakeLists.txt') != '' }}
+        run: |
+          cmake -S server -B build
+          cmake --build build
+
+      - name: Build server (Makefile)
+        if: ${{ hashFiles('server/Makefile') != '' }}
+        run: make -C server
+
+      - name: Setup Node
+        if: ${{ hashFiles('client/package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Build client
+        if: ${{ hashFiles('client/package.json') != '' }}
+        run: |
+          cd client
+          npm ci
+          npm run build
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          if [ -f build/cube_server ]; then
+            mkdir -p artifacts/server
+            cp build/cube_server artifacts/server/
+          elif [ -f server/cube_server ]; then
+            mkdir -p artifacts/server
+            cp server/cube_server artifacts/server/
+          elif [ -f server/bin/cube_server ]; then
+            mkdir -p artifacts/server
+            cp server/bin/cube_server artifacts/server/
+          fi
+
+          if [ -d client/dist ]; then
+            mkdir -p artifacts/client
+            cp -R client/dist/* artifacts/client/
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: artifacts
+          if-no-files-found: warn

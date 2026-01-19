@@ -58,12 +58,15 @@ These are interpreted as deployment recipes with increasing rigor:
 - Prefer **Caddy** for auto HTTPS and simple config.
 - Proxy `/ws` (or chosen path) to the signaling server.
 - Serve static client from `/var/www/cube-client` or from the container.
+- Point `/var/www/cube-client` at `/opt/cube-streamer/current/client`.
+- Reference Nginx vhost: `ops/nginx/streamer.conf` (includes `/healthz`).
 
 ### Service management
 - `cube_server` systemd unit with:
   - Restart on failure.
   - Logs to journald.
   - Env file at `/etc/cube-server/env`.
+  - ExecStart at `/opt/cube-streamer/current/bin/cube_server`.
 
 ### Optional hardening
 - `fail2ban` for SSH.
@@ -83,6 +86,9 @@ These are interpreted as deployment recipes with increasing rigor:
 3. **Deploy prod** (`deploy-prod.yml`)
    - Trigger: manual `workflow_dispatch` or tag (e.g., `v*`).
    - Required reviewers via GitHub Environments.
+
+Workflows upload a release bundle to `/opt/cube-streamer/releases/<sha>` and
+update `/opt/cube-streamer/current`.
 
 ### Deployment method (simple + reliable)
 Option A (preferred): **containerized deploy**
@@ -108,8 +114,10 @@ Option B: **artifact deploy**
 ### Rollback
 - Keep last N releases on droplet.
 - Roll back by switching `current` symlink or pulling previous image tag.
+See `RUNBOOK.md` for step-by-step rollback and operational commands.
 
 ## Observability plan (small-service friendly)
+See `OBSERVABILITY.md` for baseline logging, uptime checks, and optional metrics.
 
 ### Logs
 - Journaled logs for server and proxy.

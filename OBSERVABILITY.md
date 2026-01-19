@@ -7,10 +7,12 @@ Baseline monitoring keeps the single-node service debuggable and alertable.
 - Server logs live in journald under `cube-server.service`.
 - Nginx logs live in `/var/log/nginx/`.
 
-Recommended journald retention (edit `/etc/systemd/journald.conf`):
+Journald retention (drop-in example):
 
-- `SystemMaxUse=1G`
-- `MaxRetentionSec=30day`
+- `/etc/systemd/journald.conf.d/99-retention.conf`
+- `SystemMaxUse=500M`
+- `MaxRetentionSec=14day`
+- `Compress=yes`
 
 After changes:
 
@@ -18,16 +20,20 @@ After changes:
 
 ## Metrics (optional)
 
-Install node_exporter for host metrics:
+Install `prometheus-node-exporter` and pin it to localhost:
 
-1. Download the latest release from GitHub.
-2. Create a `node_exporter` user.
-3. Install the binary to `/usr/local/bin/node_exporter`.
-4. Add a systemd unit to expose `:9100` on localhost.
+- Service: `prometheus-node-exporter.service`
+- Override: `/etc/systemd/system/prometheus-node-exporter.service.d/override.conf`
+- Listen address: `127.0.0.1:9100`
 
 If exposing externally, gate with firewall rules or a reverse proxy.
 
 ## Uptime checks
+
+Optional local uptime checks (systemd timer):
+
+- Script: `/usr/local/bin/cube-uptime-check.sh`
+- Timer: `cube-uptime-check.timer` (every 5 min)
 
 Create an external check that hits:
 
@@ -41,6 +47,6 @@ Alert on:
 
 ## Quick inspection
 
-- Active connections: `sudo ss -tuna | rg ':443|:9000'`
+- Active connections: `sudo ss -tuna | grep -E ':443|:9000'`
 - Disk usage: `df -h`
 - Memory pressure: `free -h`

@@ -28,6 +28,7 @@ These are interpreted as deployment recipes with increasing rigor:
   - Static client assets served by a reverse proxy (Caddy or Nginx).
   - Signaling over HTTPS + WebSocket; media via WebRTC (UDP).
 - **DNS + TLS** for a single domain (e.g., `stream.example.com`).
+  - Optional: automate DNS records via Cloudflare API using GitHub Actions.
 
 ## DigitalOcean provisioning plan
 
@@ -98,6 +99,7 @@ Option B: **artifact deploy**
   - `SSH_HOST`, `SSH_USER`, `SSH_KEY`
   - `CS_STUN_SERVER`, `CS_TURN_*` (if needed)
   - `DOMAIN`, `TLS_EMAIL`
+  - `CLOUDFLARE_API_KEY` (Cloudflare API token/key for DNS automation)
 - Also store the GitHub repository secret `DIGITAL_OCEAN_KEY` (a DigitalOcean
   API key) for provisioning/monitoring environments from CI/CD. DigitalOcean
   API docs: https://docs.digitalocean.com/reference/api/digitalocean/

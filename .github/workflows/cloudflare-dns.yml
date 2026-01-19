@@ -1,0 +1,123 @@
+name: Cloudflare DNS
+
+on:
+  workflow_dispatch:
+    inputs:
+      zone_name:
+        description: "Cloudflare zone name (e.g., winnowscout.com)"
+        required: true
+        default: "winnowscout.com"
+      record_name:
+        description: "DNS record name to upsert (e.g., stream.winnowscout.com)"
+        required: true
+        default: "stream.winnowscout.com"
+      record_type:
+        description: "Record type (A or AAAA)"
+        required: true
+        default: "A"
+      record_content:
+        description: "Record content (IP address)"
+        required: true
+      ttl:
+        description: "TTL in seconds (1 = auto)"
+        required: true
+        default: "1"
+      proxied:
+        description: "Proxy through Cloudflare (true/false)"
+        required: true
+        default: "false"
+
+jobs:
+  upsert-dns:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_KEY}" ]; then
+            echo "CLOUDFLARE_API_KEY secret is required."
+            exit 1
+          fi
+      - name: Upsert DNS record
+        run: |
+          set -euo pipefail
+          ZONE_NAME="${{ inputs.zone_name }}"
+          RECORD_NAME="${{ inputs.record_name }}"
+          RECORD_TYPE="${{ inputs.record_type }}"
+          RECORD_CONTENT="${{ inputs.record_content }}"
+          TTL_INPUT="${{ inputs.ttl }}"
+          PROXIED_INPUT="${{ inputs.proxied }}"
+
+          if [ -z "$RECORD_CONTENT" ]; then
+            echo "record_content must be provided."
+            exit 1
+          fi
+
+          if ! [[ "$TTL_INPUT" =~ ^[0-9]+$ ]]; then
+            echo "Invalid ttl value: $TTL_INPUT (use a number, 1 = auto)."
+            exit 1
+          fi
+
+          PROXIED_BOOL="false"
+          case "${PROXIED_INPUT,,}" in
+            1|true|yes) PROXIED_BOOL="true" ;;
+            0|false|no) PROXIED_BOOL="false" ;;
+            *)
+              echo "Invalid proxied value: $PROXIED_INPUT (use true/false)."
+              exit 1
+              ;;
+          esac
+
+          if [ -n "${CLOUDFLARE_EMAIL:-}" ]; then
+            AUTH_ARGS=(-H "X-Auth-Key: ${CLOUDFLARE_API_KEY}" -H "X-Auth-Email: ${CLOUDFLARE_EMAIL}")
+          else
+            AUTH_ARGS=(-H "Authorization: Bearer ${CLOUDFLARE_API_KEY}")
+          fi
+
+          API_BASE="https://api.cloudflare.com/client/v4"
+
+          zone_json=$(curl -sS "${AUTH_ARGS[@]}" "$API_BASE/zones?name=$ZONE_NAME&status=active")
+          zone_id=$(echo "$zone_json" | jq -r '.result[0].id // empty')
+
+          if [ -z "$zone_id" ]; then
+            echo "Zone not found for name: $ZONE_NAME"
+            echo "$zone_json" | jq -r '.errors[]?.message'
+            exit 1
+          fi
+
+          record_json=$(curl -sS "${AUTH_ARGS[@]}" "$API_BASE/zones/$zone_id/dns_records?type=$RECORD_TYPE&name=$RECORD_NAME")
+          record_id=$(echo "$record_json" | jq -r '.result[0].id // empty')
+
+          payload=$(jq -n \
+            --arg type "$RECORD_TYPE" \
+            --arg name "$RECORD_NAME" \
+            --arg content "$RECORD_CONTENT" \
+            --argjson ttl "$TTL_INPUT" \
+            --argjson proxied "$PROXIED_BOOL" \
+            '{type: $type, name: $name, content: $content, ttl: $ttl, proxied: $proxied}')
+
+          if [ -n "$record_id" ]; then
+            response=$(curl -sS -X PUT "${AUTH_ARGS[@]}" \
+              -H "Content-Type: application/json" \
+              --data "$payload" \
+              "$API_BASE/zones/$zone_id/dns_records/$record_id")
+            action="updated"
+          else
+            response=$(curl -sS -X POST "${AUTH_ARGS[@]}" \
+              -H "Content-Type: application/json" \
+              --data "$payload" \
+              "$API_BASE/zones/$zone_id/dns_records")
+            action="created"
+          fi
+
+          success=$(echo "$response" | jq -r '.success')
+          if [ "$success" != "true" ]; then
+            echo "DNS record $action failed."
+            echo "$response" | jq -r '.errors[]?.message'
+            exit 1
+          fi
+
+          echo "DNS record $action for $RECORD_NAME ($RECORD_TYPE)."

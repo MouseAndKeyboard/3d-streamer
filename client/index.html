@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cube Streamer</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hero">
+        <p class="eyebrow">Live Receiver</p>
+        <h1>Cube Streamer</h1>
+        <p class="tagline">WebRTC video streaming, minimal and direct.</p>
+      </header>
+      <main class="panel">
+        <div class="status-row">
+          <span id="status" class="status idle">Idle</span>
+          <button id="connect-btn" type="button">Connect</button>
+        </div>
+        <div class="video-shell">
+          <video id="video" autoplay muted playsinline></video>
+        </div>
+        <div id="details" class="details"></div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -69,6 +69,7 @@ Dependencies:
 
 - GStreamer (`gstreamer-1.0`, `gstreamer-app-1.0`, `gstreamer-webrtc-1.0`, `gstreamer-sdp-1.0`)
 - libwebsockets
+- OpenSSL headers (libssl) for TLS support in libwebsockets
 - EGL + OpenGL ES
 
 Build:
@@ -89,6 +90,15 @@ Set a STUN server (optional):
 ```bash
 CS_STUN_SERVER=stun:stun.l.google.com:19302 ./build/cube_server
 ```
+
+### Server configuration
+
+Optional environment variables:
+- `CS_PORT` (default `8080`)
+- `CS_WIDTH` / `CS_HEIGHT` (default `1280` / `720`)
+- `CS_FPS` (default `30`)
+- `CS_BITRATE_KBPS` (default `2500`)
+- `CS_STUN_SERVER` (optional)
 
 ### Client
 

@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cube Streamer E2E Probe</title>
+    <style>
+      body {
+        font-family: "SF Mono", "Menlo", "Consolas", monospace;
+        margin: 16px;
+      }
+      video {
+        width: 480px;
+        height: 270px;
+        background: #111;
+      }
+      pre {
+        font-size: 12px;
+        background: #f6f6f6;
+        padding: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Cube Streamer E2E Probe</h1>
+    <video id="video" autoplay playsinline muted></video>
+    <pre id="status">Loading...</pre>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const wsUrl = params.get("ws");
+        const stunUrl = params.get("stun");
+        const statusEl = document.getElementById("status");
+        const video = document.getElementById("video");
+
+        const status = {
+          wsUrl: wsUrl || "",
+          wsOpen: false,
+          wsState: "new",
+          pcState: "new",
+          iceState: "new",
+          trackCount: 0,
+          frameCount: 0,
+          firstFrameMs: null,
+          lastFrameMs: null,
+          errors: [],
+        };
+
+        function updateStatus() {
+          statusEl.textContent = JSON.stringify(status, null, 2);
+        }
+
+        function recordError(message) {
+          status.errors.push(message);
+          console.error(message);
+          updateStatus();
+        }
+
+        if (!wsUrl) {
+          recordError("Missing ws query param. Use ?ws=wss://host/ws");
+          return;
+        }
+
+        const pcConfig = stunUrl
+          ? { iceServers: [{ urls: stunUrl }] }
+          : undefined;
+        const pc = new RTCPeerConnection(pcConfig);
+        const pending = [];
+        const ws = new WebSocket(wsUrl);
+
+        function sendMessage(payload) {
+          const message = JSON.stringify(payload);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(message);
+          } else {
+            pending.push(message);
+          }
+        }
+
+        pc.onicecandidate = function (event) {
+          if (event.candidate) {
+            sendMessage({ type: "ice", candidate: event.candidate });
+          }
+        };
+
+        pc.onconnectionstatechange = function () {
+          status.pcState = pc.connectionState;
+          updateStatus();
+        };
+
+        pc.oniceconnectionstatechange = function () {
+          status.iceState = pc.iceConnectionState;
+          updateStatus();
+        };
+
+        pc.ontrack = function (event) {
+          status.trackCount += 1;
+          video.srcObject = event.streams[0];
+          updateStatus();
+          if (typeof video.requestVideoFrameCallback === "function") {
+            const onFrame = function () {
+              status.frameCount += 1;
+              const now = performance.now();
+              status.lastFrameMs = now;
+              if (!status.firstFrameMs) {
+                status.firstFrameMs = now;
+              }
+              updateStatus();
+              video.requestVideoFrameCallback(onFrame);
+            };
+            video.requestVideoFrameCallback(onFrame);
+          }
+        };
+
+        ws.onopen = function () {
+          status.wsOpen = true;
+          status.wsState = "open";
+          updateStatus();
+          ws.send(JSON.stringify({ type: "hello", role: "viewer", id: "e2e" }));
+          while (pending.length > 0) {
+            ws.send(pending.shift());
+          }
+        };
+
+        ws.onclose = function () {
+          status.wsState = "closed";
+          updateStatus();
+        };
+
+        ws.onerror = function () {
+          recordError("WebSocket error");
+        };
+
+        ws.onmessage = async function (event) {
+          let message;
+          try {
+            message = JSON.parse(event.data);
+          } catch (err) {
+            recordError("Invalid JSON from server");
+            return;
+          }
+
+          if (message.type === "offer" && message.sdp) {
+            try {
+              await pc.setRemoteDescription({ type: "offer", sdp: message.sdp });
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              sendMessage({ type: "answer", sdp: answer.sdp });
+            } catch (err) {
+              recordError("Failed to handle offer");
+            }
+            return;
+          }
+
+          if (message.type === "ice" && message.candidate) {
+            try {
+              await pc.addIceCandidate(message.candidate);
+            } catch (err) {
+              recordError("Failed to add ICE candidate");
+            }
+          }
+        };
+
+        if (typeof video.requestVideoFrameCallback !== "function") {
+          let lastTime = 0;
+          setInterval(function () {
+            if (video.currentTime !== lastTime) {
+              lastTime = video.currentTime;
+              status.frameCount += 1;
+              const now = performance.now();
+              status.lastFrameMs = now;
+              if (!status.firstFrameMs) {
+                status.firstFrameMs = now;
+              }
+              updateStatus();
+            }
+          }, 200);
+        }
+
+        window.__e2eStatus = status;
+        window.__e2eWaitForFrames = function (timeoutMs, minFrames) {
+          const start = performance.now();
+          const timeout = timeoutMs || 20000;
+          const required = minFrames || 3;
+
+          return new Promise(function (resolve, reject) {
+            const interval = setInterval(function () {
+              if (status.errors.length > 0) {
+                clearInterval(interval);
+                reject(new Error(status.errors[0]));
+                return;
+              }
+
+              if (status.frameCount >= required) {
+                clearInterval(interval);
+                resolve({
+                  frameCount: status.frameCount,
+                  firstFrameMs: status.firstFrameMs,
+                  lastFrameMs: status.lastFrameMs,
+                  pcState: status.pcState,
+                  iceState: status.iceState,
+                });
+                return;
+              }
+
+              if (pc.connectionState === "failed") {
+                clearInterval(interval);
+                reject(new Error("Peer connection failed"));
+                return;
+              }
+
+              if (performance.now() - start > timeout) {
+                clearInterval(interval);
+                reject(new Error("Timed out waiting for frames"));
+              }
+            }, 100);
+          });
+        };
+
+        updateStatus();
+      })();
+    </script>
+  </body>
+</html>

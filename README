@@ -105,6 +105,11 @@ Then open the Vite URL and connect to `ws://localhost:8080`.
 - Signaling is currently single-client oriented.
 - JSON parsing is intentionally minimal and should be replaced with a robust parser for production.
 
+## Validation
+
+- Design: `E2E_VALIDATION.md`
+- Scripts + probe: `e2e/`
+
 ---
 
 Minimal by design.
